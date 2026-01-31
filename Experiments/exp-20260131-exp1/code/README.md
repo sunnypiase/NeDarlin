@@ -16,3 +16,5 @@
   - GPU is used automatically if CUDA is available.
   - Labels are log1p-transformed for training stability (no cap).
   - Early stopping monitors `val/loss` (patience=3, min_delta=0).
+  - Model outputs SL/TP coefficients plus a trade probability head (threshold 0.6).
+  - Training includes BCE trade loss and L2 penalty on predicted coefficients (1e-3).

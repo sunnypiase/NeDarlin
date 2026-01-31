@@ -85,6 +85,11 @@ material project decisions, data changes, or behavior shifts occur.
   - Reason: Stop training when validation loss stops improving.
   - Follow-ups: Tune patience/min_delta as needed.
 - 2026-01-31:
+  - Summary: Added trade/no-trade head and coefficient penalty to reduce overtrading.
+  - Affected files: `Experiments/exp-20260131-exp1/code/model.py`, `Experiments/exp-20260131-exp1/code/train.py`, `Experiments/exp-20260131-exp1/code/eval.py`, `Experiments/exp-20260131-exp1/code/config.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Predict trade decisions explicitly and penalize extreme coefficients.
+  - Follow-ups: Re-run training and confirm `trade_rate_pred` falls below 1.0.
+- 2026-01-31:
   - Summary: Skip Git LFS pointer CSVs during data load.
   - Affected files: `Experiments/exp-20260131-exp1/code/data_io.py`, `CONTEXT.md`
   - Reason: Prevent crashes when large data files are not fetched.

@@ -69,6 +69,7 @@ def evaluate() -> None:
     true_coeffs_all = []
     rr_all = []
     trade_all = []
+    trade_logit_all = []
 
     timer.start("eval_forward")
     with torch.no_grad():
@@ -77,11 +78,12 @@ def evaluate() -> None:
             labels = labels.to(device, non_blocking=pin_memory)
             rr = rr.to(device, non_blocking=pin_memory)
             trade = trade.to(device, non_blocking=pin_memory)
-            pred_coeffs, _ = model(features)
+            pred_coeffs, trade_logit, _ = model(features)
             pred_coeffs_all.append(pred_coeffs.cpu().numpy())
             true_coeffs_all.append(labels.cpu().numpy())
             rr_all.append(rr.cpu().numpy())
             trade_all.append(trade.cpu().numpy())
+            trade_logit_all.append(trade_logit.cpu().numpy())
     timer.stop("eval_forward")
 
     pred_coeffs = np.concatenate(pred_coeffs_all, axis=0)
@@ -92,13 +94,13 @@ def evaluate() -> None:
         true_coeffs = np.expm1(true_coeffs)
     rr = np.concatenate(rr_all, axis=0)
     trade = np.concatenate(trade_all, axis=0)
+    trade_logit = np.concatenate(trade_logit_all, axis=0)
 
     trade_mask = trade > 0.5
     mse = float(np.mean((pred_coeffs - true_coeffs) ** 2))
     mse_trade = float(np.mean((pred_coeffs[trade_mask] - true_coeffs[trade_mask]) ** 2)) if trade_mask.any() else 0.0
 
-    pred_rr = pred_coeffs[:, 1] / (pred_coeffs[:, 0] + 1e-6)
-    pred_trade = pred_rr >= 1.0
+    pred_trade = (1.0 / (1.0 + np.exp(-trade_logit))) >= config.trade_threshold
     trade_rate = float(trade.mean())
     pred_trade_rate = float(pred_trade.mean())
     precision = float((pred_trade & trade_mask).sum() / max(pred_trade.sum(), 1))

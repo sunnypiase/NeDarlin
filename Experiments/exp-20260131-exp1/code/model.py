@@ -14,15 +14,21 @@ class ActorCritic(nn.Module):
             nn.Linear(hidden_size, 2),
             nn.Softplus(),
         )
+        self.trade_head = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1),
+        )
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         _, hidden = self.gru(x)
         hidden = hidden.squeeze(0)
         policy = self.actor(hidden)
+        trade_logit = self.trade_head(hidden).squeeze(-1)
         value = self.critic(hidden).squeeze(-1)
-        return policy, value
+        return policy, trade_logit, value

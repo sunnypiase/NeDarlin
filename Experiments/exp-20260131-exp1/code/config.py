@@ -33,6 +33,8 @@ class ExperimentConfig:
     label_log_transform: bool = True
     early_stopping_patience: int = 3
     early_stopping_min_delta: float = 0.0
+    trade_threshold: float = 0.6
+    coeff_l2_weight: float = 1e-3
 
     seed: int = 42
 

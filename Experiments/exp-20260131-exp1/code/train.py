@@ -118,7 +118,7 @@ def train(
             labels = labels.to(device, non_blocking=pin_memory)
             rr = rr.to(device, non_blocking=pin_memory)
             trade = trade.to(device, non_blocking=pin_memory)
-            pred_coeffs, value = model(features)
+            pred_coeffs, trade_logit, value = model(features)
 
             trade_mask = trade > 0.5
             if trade_mask.any():
@@ -131,7 +131,24 @@ def train(
                 actor_loss = torch.tensor(0.0, device=device)
 
             critic_loss = torch.mean((value - rr) ** 2)
-            loss = actor_loss + config.critic_weight * critic_loss
+            trade_rate = trade.float().mean().item()
+            pos_weight = torch.tensor(
+                (1.0 - trade_rate) / max(trade_rate, 1e-6),
+                device=device,
+            )
+            trade_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                trade_logit,
+                trade,
+                pos_weight=pos_weight,
+            )
+            coeff_l2 = torch.mean(pred_coeffs ** 2)
+            trade_pred = (torch.sigmoid(trade_logit) > config.trade_threshold).float()
+            loss = (
+                actor_loss
+                + config.critic_weight * critic_loss
+                + trade_loss
+                + config.coeff_l2_weight * coeff_l2
+            )
             loss = loss / accum_steps
 
             loss.backward()
@@ -143,16 +160,29 @@ def train(
                 tf.summary.scalar("train/loss", loss.item() * accum_steps, step=step)
                 tf.summary.scalar("train/actor_loss", actor_loss.item(), step=step)
                 tf.summary.scalar("train/critic_loss", critic_loss.item(), step=step)
+                tf.summary.scalar("train/trade_loss", trade_loss.item(), step=step)
+                tf.summary.scalar("train/coeff_l2", coeff_l2.item(), step=step)
                 tf.summary.scalar("train/trade_rate", trade.float().mean().item(), step=step)
+                tf.summary.scalar("train/trade_rate_pred", trade_pred.mean().item(), step=step)
 
             step += 1
 
-        val_metrics = evaluate(model, val_loader, device, pin_memory)
+        val_metrics = evaluate(
+            model,
+            val_loader,
+            device,
+            pin_memory,
+            coeff_l2_weight=config.coeff_l2_weight,
+            trade_threshold=config.trade_threshold,
+        )
         with writer.as_default():
             tf.summary.scalar("val/loss", val_metrics["loss"], step=step)
             tf.summary.scalar("val/actor_loss", val_metrics["actor_loss"], step=step)
             tf.summary.scalar("val/critic_loss", val_metrics["critic_loss"], step=step)
+            tf.summary.scalar("val/trade_loss", val_metrics["trade_loss"], step=step)
+            tf.summary.scalar("val/coeff_l2", val_metrics["coeff_l2"], step=step)
             tf.summary.scalar("val/trade_rate", val_metrics["trade_rate"], step=step)
+            tf.summary.scalar("val/trade_rate_pred", val_metrics["trade_rate_pred"], step=step)
 
         if val_metrics["loss"] < best_val - config.early_stopping_min_delta:
             best_val = val_metrics["loss"]
@@ -175,12 +205,22 @@ def train(
         print(line)
 
 
-def evaluate(model: ActorCritic, loader: DataLoader, device: torch.device, pin_memory: bool) -> dict:
+def evaluate(
+    model: ActorCritic,
+    loader: DataLoader,
+    device: torch.device,
+    pin_memory: bool,
+    coeff_l2_weight: float,
+    trade_threshold: float,
+) -> dict:
     model.eval()
     total_loss = 0.0
     total_actor = 0.0
     total_critic = 0.0
+    total_trade_loss = 0.0
+    total_coeff_l2 = 0.0
     total_trade = 0.0
+    total_trade_pred = 0.0
     count = 0
     with torch.no_grad():
         for batch in tqdm(loader, desc="Val", unit="batch"):
@@ -189,7 +229,7 @@ def evaluate(model: ActorCritic, loader: DataLoader, device: torch.device, pin_m
             labels = labels.to(device, non_blocking=pin_memory)
             rr = rr.to(device, non_blocking=pin_memory)
             trade = trade.to(device, non_blocking=pin_memory)
-            pred_coeffs, value = model(features)
+            pred_coeffs, trade_logit, value = model(features)
             trade_mask = trade > 0.5
             if trade_mask.any():
                 actor_loss = torch.nn.functional.huber_loss(
@@ -200,20 +240,51 @@ def evaluate(model: ActorCritic, loader: DataLoader, device: torch.device, pin_m
             else:
                 actor_loss = torch.tensor(0.0, device=device)
             critic_loss = torch.mean((value - rr) ** 2)
-            loss = actor_loss + critic_loss
+            trade_rate = trade.float().mean().item()
+            pos_weight = torch.tensor(
+                (1.0 - trade_rate) / max(trade_rate, 1e-6),
+                device=device,
+            )
+            trade_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                trade_logit,
+                trade,
+                pos_weight=pos_weight,
+            )
+            coeff_l2 = torch.mean(pred_coeffs ** 2)
+            loss = (
+                actor_loss
+                + critic_loss
+                + trade_loss
+                + coeff_l2_weight * coeff_l2
+            )
+            trade_pred = (torch.sigmoid(trade_logit) > trade_threshold).float()
             total_loss += loss.item()
             total_actor += actor_loss.item()
             total_critic += critic_loss.item()
+            total_trade_loss += trade_loss.item()
+            total_coeff_l2 += coeff_l2.item()
             total_trade += trade.float().mean().item()
+            total_trade_pred += trade_pred.mean().item()
             count += 1
 
     if count == 0:
-        return {"loss": 0.0, "actor_loss": 0.0, "critic_loss": 0.0, "trade_rate": 0.0}
+        return {
+            "loss": 0.0,
+            "actor_loss": 0.0,
+            "critic_loss": 0.0,
+            "trade_loss": 0.0,
+            "coeff_l2": 0.0,
+            "trade_rate": 0.0,
+            "trade_rate_pred": 0.0,
+        }
     return {
         "loss": total_loss / count,
         "actor_loss": total_actor / count,
         "critic_loss": total_critic / count,
+        "trade_loss": total_trade_loss / count,
+        "coeff_l2": total_coeff_l2 / count,
         "trade_rate": total_trade / count,
+        "trade_rate_pred": total_trade_pred / count,
     }
 
 
