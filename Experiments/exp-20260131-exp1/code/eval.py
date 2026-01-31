@@ -42,6 +42,7 @@ def evaluate() -> None:
         atr_window=config.atr_window,
         std_window=config.std_window,
         label_config=label_config,
+        label_log_transform=config.label_log_transform,
         train_ratio=config.train_ratio,
         val_ratio=config.val_ratio,
         cache_dir=config.cache_dir,
@@ -85,6 +86,10 @@ def evaluate() -> None:
 
     pred_coeffs = np.concatenate(pred_coeffs_all, axis=0)
     true_coeffs = np.concatenate(true_coeffs_all, axis=0)
+
+    if config.label_log_transform:
+        pred_coeffs = np.expm1(pred_coeffs)
+        true_coeffs = np.expm1(true_coeffs)
     rr = np.concatenate(rr_all, axis=0)
     trade = np.concatenate(trade_all, axis=0)
 

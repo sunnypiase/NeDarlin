@@ -43,6 +43,7 @@ def run_smoke_test() -> None:
         atr_window=config.atr_window,
         std_window=config.std_window,
         label_config=label_config,
+        label_log_transform=config.label_log_transform,
         train_ratio=config.train_ratio,
         val_ratio=config.val_ratio,
         cache_dir=config.cache_dir,

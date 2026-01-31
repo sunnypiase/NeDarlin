@@ -33,7 +33,11 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def train(num_epochs: int | None = None, batch_size: int | None = None) -> None:
+def train(
+    num_epochs: int | None = None,
+    batch_size: int | None = None,
+    grad_accum_steps: int | None = None,
+) -> None:
     config = build_config()
     set_seed(config.seed)
     timer = StageTimer()
@@ -59,6 +63,7 @@ def train(num_epochs: int | None = None, batch_size: int | None = None) -> None:
         atr_window=config.atr_window,
         std_window=config.std_window,
         label_config=label_config,
+        label_log_transform=config.label_log_transform,
         train_ratio=config.train_ratio,
         val_ratio=config.val_ratio,
         cache_dir=config.cache_dir,
@@ -71,6 +76,8 @@ def train(num_epochs: int | None = None, batch_size: int | None = None) -> None:
     pin_memory = device.type == "cuda"
 
     effective_batch = batch_size if batch_size is not None else config.batch_size
+    accum_steps = grad_accum_steps if grad_accum_steps is not None else config.grad_accum_steps
+    accum_steps = max(1, int(accum_steps))
 
     train_loader = DataLoader(
         train_set,
@@ -96,11 +103,16 @@ def train(num_epochs: int | None = None, batch_size: int | None = None) -> None:
         tf.summary.text("feature_names", ", ".join(feature_names), step=0)
 
     step = 0
+    best_val = float("inf")
+    epochs_no_improve = 0
     epochs = num_epochs if num_epochs is not None else config.num_epochs
     timer.start("train_total")
     for epoch in range(epochs):
         model.train()
-        for batch in tqdm(train_loader, desc=f"Train epoch {epoch + 1}/{epochs}", unit="batch"):
+        optimizer.zero_grad(set_to_none=True)
+        for batch_idx, batch in enumerate(
+            tqdm(train_loader, desc=f"Train epoch {epoch + 1}/{epochs}", unit="batch")
+        ):
             features, labels, rr, trade = batch
             features = features.to(device, non_blocking=pin_memory)
             labels = labels.to(device, non_blocking=pin_memory)
@@ -110,19 +122,25 @@ def train(num_epochs: int | None = None, batch_size: int | None = None) -> None:
 
             trade_mask = trade > 0.5
             if trade_mask.any():
-                actor_loss = torch.mean((pred_coeffs[trade_mask] - labels[trade_mask]) ** 2)
+                actor_loss = torch.nn.functional.huber_loss(
+                    pred_coeffs[trade_mask],
+                    labels[trade_mask],
+                    delta=1.0,
+                )
             else:
-                actor_loss = torch.tensor(0.0)
+                actor_loss = torch.tensor(0.0, device=device)
 
             critic_loss = torch.mean((value - rr) ** 2)
             loss = actor_loss + config.critic_weight * critic_loss
+            loss = loss / accum_steps
 
-            optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
+            if (batch_idx + 1) % accum_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
 
             with writer.as_default():
-                tf.summary.scalar("train/loss", loss.item(), step=step)
+                tf.summary.scalar("train/loss", loss.item() * accum_steps, step=step)
                 tf.summary.scalar("train/actor_loss", actor_loss.item(), step=step)
                 tf.summary.scalar("train/critic_loss", critic_loss.item(), step=step)
                 tf.summary.scalar("train/trade_rate", trade.float().mean().item(), step=step)
@@ -135,6 +153,20 @@ def train(num_epochs: int | None = None, batch_size: int | None = None) -> None:
             tf.summary.scalar("val/actor_loss", val_metrics["actor_loss"], step=step)
             tf.summary.scalar("val/critic_loss", val_metrics["critic_loss"], step=step)
             tf.summary.scalar("val/trade_rate", val_metrics["trade_rate"], step=step)
+
+        if val_metrics["loss"] < best_val - config.early_stopping_min_delta:
+            best_val = val_metrics["loss"]
+            epochs_no_improve = 0
+            torch.save(model.state_dict(), config.artifacts_dir / "best_model.pt")
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= config.early_stopping_patience:
+                print(
+                    "Early stopping triggered. "
+                    f"Best val/loss={best_val:.6f}, "
+                    f"patience={config.early_stopping_patience}"
+                )
+                break
 
     timer.stop("train_total")
     torch.save(model.state_dict(), config.artifacts_dir / "model.pt")
@@ -160,9 +192,13 @@ def evaluate(model: ActorCritic, loader: DataLoader, device: torch.device, pin_m
             pred_coeffs, value = model(features)
             trade_mask = trade > 0.5
             if trade_mask.any():
-                actor_loss = torch.mean((pred_coeffs[trade_mask] - labels[trade_mask]) ** 2)
+                actor_loss = torch.nn.functional.huber_loss(
+                    pred_coeffs[trade_mask],
+                    labels[trade_mask],
+                    delta=1.0,
+                )
             else:
-                actor_loss = torch.tensor(0.0)
+                actor_loss = torch.tensor(0.0, device=device)
             critic_loss = torch.mean((value - rr) ** 2)
             loss = actor_loss + critic_loss
             total_loss += loss.item()
@@ -185,8 +221,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--grad-accum-steps", type=int, default=None)
     args = parser.parse_args()
-    train(num_epochs=args.epochs, batch_size=args.batch_size)
+    train(
+        num_epochs=args.epochs,
+        batch_size=args.batch_size,
+        grad_accum_steps=args.grad_accum_steps,
+    )
 
 
 if __name__ == "__main__":

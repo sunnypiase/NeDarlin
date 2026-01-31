@@ -23,12 +23,16 @@ class ExperimentConfig:
     val_ratio: float = 0.15
     test_ratio: float = 0.15
 
-    batch_size: int = 256
+    batch_size: int = 2048
     num_epochs: int = 5
     learning_rate: float = 1e-3
     critic_weight: float = 0.5
+    grad_accum_steps: int = 1
     parallel_prep: bool = True
     max_workers: int | None = None
+    label_log_transform: bool = True
+    early_stopping_patience: int = 3
+    early_stopping_min_delta: float = 0.0
 
     seed: int = 42
 

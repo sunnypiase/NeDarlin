@@ -65,6 +65,36 @@ material project decisions, data changes, or behavior shifts occur.
   - Reason: Speed up training throughput.
   - Follow-ups: Monitor GPU/CPU memory usage and adjust batch size if needed.
 - 2026-01-31:
+  - Summary: Added gradient accumulation and raised default batch size for H100 runs.
+  - Affected files: `Experiments/exp-20260131-exp1/code/config.py`, `Experiments/exp-20260131-exp1/code/train.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Enable large effective batch sizes without OOM.
+  - Follow-ups: Tune `--batch-size` and `--grad-accum-steps` for best throughput.
+- 2026-01-31:
+  - Summary: Added label capping/log transform and Huber actor loss for stability.
+  - Affected files: `Experiments/exp-20260131-exp1/code/config.py`, `Experiments/exp-20260131-exp1/code/dataset.py`, `Experiments/exp-20260131-exp1/code/train.py`, `Experiments/exp-20260131-exp1/code/eval.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Reduce exploding actor loss by stabilizing label scales.
+  - Follow-ups: Rebuild cache and re-run training/eval to verify improved losses.
+- 2026-01-31:
+  - Summary: Removed label cap; keep log1p transform only.
+  - Affected files: `Experiments/exp-20260131-exp1/code/config.py`, `Experiments/exp-20260131-exp1/code/dataset.py`, `Experiments/exp-20260131-exp1/code/train.py`, `Experiments/exp-20260131-exp1/code/eval.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Prevent flattening labels at the cap and preserve scale via log transform.
+  - Follow-ups: Rebuild cache and re-run smoke test/training.
+- 2026-01-31:
+  - Summary: Added early stopping on validation loss.
+  - Affected files: `Experiments/exp-20260131-exp1/code/config.py`, `Experiments/exp-20260131-exp1/code/train.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Stop training when validation loss stops improving.
+  - Follow-ups: Tune patience/min_delta as needed.
+- 2026-01-31:
+  - Summary: Skip Git LFS pointer CSVs during data load.
+  - Affected files: `Experiments/exp-20260131-exp1/code/data_io.py`, `CONTEXT.md`
+  - Reason: Prevent crashes when large data files are not fetched.
+  - Follow-ups: Pull LFS data for full dataset runs.
+- 2026-01-31:
+  - Summary: Improved error message when all CSVs are LFS pointers.
+  - Affected files: `Experiments/exp-20260131-exp1/code/data_io.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Provide clear guidance to fetch data.
+  - Follow-ups: Run `git lfs pull` before re-running.
+- 2026-01-31:
   - Summary: Profiled CSV datasets in `Data/` (row counts, schema, time ranges).
   - Affected files: `Data/` CSVs, `CONTEXT.md`
   - Reason: Establish baseline dataset coverage and quality notes.

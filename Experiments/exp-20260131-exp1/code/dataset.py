@@ -93,12 +93,13 @@ def _cache_key(
     atr_window: int,
     std_window: int,
     label_config: LabelConfig,
+    label_log_transform: bool,
     data_stamp: str,
 ) -> str:
     return (
         f"{symbol}_w{window_size}_atr{atr_window}_std{std_window}_"
         f"h{label_config.horizon_bars}_mm{label_config.min_move_pct}_rr{label_config.min_rr}_"
-        f"{data_stamp}"
+        f"log{int(label_log_transform)}_{data_stamp}"
     )
 
 
@@ -115,6 +116,7 @@ def build_symbol_data_cached(
     atr_window: int,
     std_window: int,
     label_config: LabelConfig,
+    label_log_transform: bool,
     cache_dir: Path | None = None,
 ) -> SymbolData:
     cache_path = None
@@ -126,6 +128,7 @@ def build_symbol_data_cached(
             atr_window,
             std_window,
             label_config,
+            label_log_transform,
             _data_stamp(df),
         )
         cache_path = cache_dir / f"{key}.npz"
@@ -146,6 +149,19 @@ def build_symbol_data_cached(
         atr_window=atr_window,
         std_window=std_window,
         label_config=label_config,
+    )
+
+    labels = symbol_data.labels
+    if label_log_transform:
+        labels = np.log1p(np.maximum(labels, 0.0))
+
+    symbol_data = SymbolData(
+        features=symbol_data.features,
+        labels=labels.astype(np.float32),
+        rr=symbol_data.rr,
+        trade_mask=symbol_data.trade_mask,
+        timestamps=symbol_data.timestamps,
+        feature_names=symbol_data.feature_names,
     )
 
     if cache_path is not None:
@@ -169,6 +185,7 @@ def _build_symbol_data_worker(
     atr_window: int,
     std_window: int,
     label_config: LabelConfig,
+    label_log_transform: bool,
     cache_dir: str | None,
 ) -> tuple[str, SymbolData]:
     cache_path = Path(cache_dir) if cache_dir is not None else None
@@ -179,6 +196,7 @@ def _build_symbol_data_worker(
         atr_window=atr_window,
         std_window=std_window,
         label_config=label_config,
+        label_log_transform=label_log_transform,
         cache_dir=cache_path,
     )
     return symbol, symbol_data
@@ -190,6 +208,7 @@ def build_datasets(
     atr_window: int,
     std_window: int,
     label_config: LabelConfig,
+    label_log_transform: bool,
     train_ratio: float,
     val_ratio: float,
     cache_dir: Path | None = None,
@@ -219,6 +238,7 @@ def build_datasets(
                     atr_window,
                     std_window,
                     label_config,
+                    label_log_transform,
                     str(cache_dir) if cache_dir is not None else None,
                 )
                 for symbol, df in symbol_items
@@ -235,12 +255,15 @@ def build_datasets(
                     atr_window,
                     std_window,
                     label_config,
+                    label_log_transform,
                     str(cache_dir) if cache_dir is not None else None,
                 )
             )
 
+    label_samples: List[np.ndarray] = []
     for _, symbol_data in symbol_results:
         feature_names = symbol_data.feature_names
+        label_samples.append(symbol_data.labels)
 
         n = len(symbol_data.features)
         train_idx, val_idx, test_idx = _split_indices(n, train_ratio, val_ratio)
@@ -262,5 +285,18 @@ def build_datasets(
 
     if timer is not None:
         timer.stop("feature_label_prep")
+
+    if label_samples:
+        labels_all = np.concatenate(label_samples, axis=0)
+        stats = {
+            "min": float(np.min(labels_all)),
+            "median": float(np.median(labels_all)),
+            "p95": float(np.percentile(labels_all, 95)),
+            "p99": float(np.percentile(labels_all, 99)),
+            "max": float(np.max(labels_all)),
+        }
+        print("Label stats (post-transform)")
+        for key, value in stats.items():
+            print(f"{key}: {value:.6f}")
 
     return ConcatDataset(train_sets), ConcatDataset(val_sets), ConcatDataset(test_sets), feature_names
