@@ -5,8 +5,11 @@
   - Train: `python Experiments/exp-20260131-exp1/code/train.py`
   - Train with larger batch: `python Experiments/exp-20260131-exp1/code/train.py --batch-size 2048`
   - Train with grad accumulation: `python Experiments/exp-20260131-exp1/code/train.py --batch-size 2048 --grad-accum-steps 4`
+  - Train with custom window: `python Experiments/exp-20260131-exp1/code/train.py --window-size 200`
   - Eval: `python Experiments/exp-20260131-exp1/code/eval.py`
+  - Eval with custom window: `python Experiments/exp-20260131-exp1/code/eval.py --window-size 200`
   - Smoke test: `python Experiments/exp-20260131-exp1/code/smoke_test.py`
+  - Smoke test with custom window: `python Experiments/exp-20260131-exp1/code/smoke_test.py --window-size 200`
 - Notes:
   - Uses all CSVs in `Data/` and resamples to 5-minute candles.
   - If `Data/*.csv` are Git LFS pointers, run `git lfs pull` before training.

@@ -21,7 +21,7 @@ from model import ActorCritic
 from timing import StageTimer
 
 
-def evaluate() -> None:
+def evaluate(window_size: int | None = None) -> None:
     config = build_config()
     timer = StageTimer()
     symbol_frames = load_all_symbols(
@@ -36,9 +36,10 @@ def evaluate() -> None:
         min_rr=1.0,
     )
 
+    effective_window = window_size if window_size is not None else config.window_size
     _, _, test_set, feature_names = build_datasets(
         symbol_frames,
-        window_size=config.window_size,
+        window_size=effective_window,
         atr_window=config.atr_window,
         std_window=config.std_window,
         label_config=label_config,
@@ -121,8 +122,9 @@ def evaluate() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.parse_args()
-    evaluate()
+    parser.add_argument("--window-size", type=int, default=None)
+    args = parser.parse_args()
+    evaluate(window_size=args.window_size)
 
 
 if __name__ == "__main__":

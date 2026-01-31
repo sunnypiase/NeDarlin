@@ -19,7 +19,7 @@ from model import ActorCritic
 from timing import StageTimer
 
 
-def run_smoke_test() -> None:
+def run_smoke_test(window_size: int | None = None) -> None:
     config = build_config()
     timer = StageTimer()
     symbol_frames = load_all_symbols(
@@ -37,9 +37,10 @@ def run_smoke_test() -> None:
         min_rr=1.0,
     )
 
+    effective_window = window_size if window_size is not None else config.window_size
     train_set, _, _, feature_names = build_datasets(
         symbol_frames,
-        window_size=config.window_size,
+        window_size=effective_window,
         atr_window=config.atr_window,
         std_window=config.std_window,
         label_config=label_config,
@@ -80,4 +81,9 @@ def run_smoke_test() -> None:
 
 
 if __name__ == "__main__":
-    run_smoke_test()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--window-size", type=int, default=None)
+    args = parser.parse_args()
+    run_smoke_test(window_size=args.window_size)

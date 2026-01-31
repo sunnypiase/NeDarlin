@@ -37,6 +37,7 @@ def train(
     num_epochs: int | None = None,
     batch_size: int | None = None,
     grad_accum_steps: int | None = None,
+    window_size: int | None = None,
 ) -> None:
     config = build_config()
     set_seed(config.seed)
@@ -57,9 +58,10 @@ def train(
         min_rr=1.0,
     )
 
+    effective_window = window_size if window_size is not None else config.window_size
     train_set, val_set, test_set, feature_names = build_datasets(
         symbol_frames,
-        window_size=config.window_size,
+        window_size=effective_window,
         atr_window=config.atr_window,
         std_window=config.std_window,
         label_config=label_config,
@@ -293,11 +295,13 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--grad-accum-steps", type=int, default=None)
+    parser.add_argument("--window-size", type=int, default=None)
     args = parser.parse_args()
     train(
         num_epochs=args.epochs,
         batch_size=args.batch_size,
         grad_accum_steps=args.grad_accum_steps,
+        window_size=args.window_size,
     )
 
 

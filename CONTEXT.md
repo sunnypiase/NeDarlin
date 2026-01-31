@@ -90,6 +90,11 @@ material project decisions, data changes, or behavior shifts occur.
   - Reason: Predict trade decisions explicitly and penalize extreme coefficients.
   - Follow-ups: Re-run training and confirm `trade_rate_pred` falls below 1.0.
 - 2026-01-31:
+  - Summary: Added CLI overrides for window size in train/eval/smoke.
+  - Affected files: `Experiments/exp-20260131-exp1/code/train.py`, `Experiments/exp-20260131-exp1/code/eval.py`, `Experiments/exp-20260131-exp1/code/smoke_test.py`, `Experiments/exp-20260131-exp1/code/README.md`, `CONTEXT.md`
+  - Reason: Allow faster experiments with smaller context windows.
+  - Follow-ups: Use smaller windows for quick iteration and scale up for final runs.
+- 2026-01-31:
   - Summary: Skip Git LFS pointer CSVs during data load.
   - Affected files: `Experiments/exp-20260131-exp1/code/data_io.py`, `CONTEXT.md`
   - Reason: Prevent crashes when large data files are not fetched.
