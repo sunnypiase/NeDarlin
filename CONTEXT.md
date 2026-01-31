@@ -25,6 +25,11 @@ material project decisions, data changes, or behavior shifts occur.
 
 ## Recent Changes (append new items)
 - 2026-01-31:
+  - Summary: Moved large CSVs to Git LFS and expanded ignores for artifacts/logs.
+  - Affected files: `.gitattributes`, `.gitignore`, `Data/*.csv`
+  - Reason: Enable pushing large data while keeping repo clean.
+  - Follow-ups: Ensure Git LFS is installed for all collaborators.
+- 2026-01-31:
   - Summary: Added experiment structure and templates for hypotheses, code, and results.
   - Affected files: `Experiments/`, `README.md`, `.cursor/rules/experiments-structure.mdc`
   - Reason: Standardize experiment workflow and documentation.
