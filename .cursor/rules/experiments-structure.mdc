@@ -1,0 +1,12 @@
+---
+description: Experiment workflow for hypotheses, code, and results
+alwaysApply: true
+---
+
+# Experiments Structure
+
+- Keep each experiment in `Experiments/exp-YYYYMMDD-short-name/`.
+- Start from `Experiments/_template/` and fill `hypothesis.md` before coding.
+- Put scripts or notebooks in `code/` and note the entry point in `code/README.md`.
+- Record outcomes and decisions in `results.md`, linking any outputs or figures.
+- If an experiment changes project direction or outputs, update `CONTEXT.md`.

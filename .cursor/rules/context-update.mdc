@@ -1,0 +1,19 @@
+---
+description: Keep CONTEXT.md updated on important changes
+alwaysApply: true
+---
+
+# Context Update Rule
+
+Update `CONTEXT.md` whenever you make an important change.
+
+Important change includes:
+- New data sources, schema changes, or data quality notes
+- Changes to project goals, assumptions, or key outputs
+- Behavior changes in scripts, analyses, or results
+- Structural changes (new modules, workflows, or pipelines)
+
+How to update:
+- Add a new entry under "Recent Changes" with date
+- Include summary, affected files, reason, and follow-ups
+- Keep entries short and factual
